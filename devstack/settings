@@ -1,1 +1,1 @@
-define_plugin cinder-scheduler-custom
+define_plugin cinder-compliance
