@@ -14,6 +14,40 @@ install_fio() {
         echo ">>> [PLUGIN] fio installato correttamente"
     fi
 }
+
+
+backup_volume_manager() {
+    local MANAGER="/opt/stack/cinder/cinder/volume/manager.py"
+    local BACKUP="/opt/stack/cinder/cinder/volume/manager.py.performanceweighted.bak"
+
+    echo ">>> [PLUGIN] Backup di manager.py"
+
+    [[ -f "$MANAGER" ]] || { echo ">>> [PLUGIN][ERRORE] manager.py non trovato: $MANAGER"; return 1; }
+
+    if [[ -f "$BACKUP" ]]; then
+        echo ">>> [PLUGIN] Backup già presente: $BACKUP"
+    else
+        cp "$MANAGER" "$BACKUP" || return 1
+        echo ">>> [PLUGIN] Backup creato: $BACKUP"
+    fi
+}
+
+restore_volume_manager() {
+    local MANAGER="/opt/stack/cinder/cinder/volume/manager.py"
+    local BACKUP="/opt/stack/cinder/cinder/volume/manager.py.performanceweighted.bak"
+
+    echo ">>> [PLUGIN] Ripristino manager.py"
+
+    if [[ -f "$BACKUP" ]]; then
+        cp "$BACKUP" "$MANAGER" || return 1
+        rm -f "$BACKUP" || return 1
+        echo ">>> [PLUGIN] manager.py ripristinato correttamente"
+    else
+        echo ">>> [PLUGIN] Nessun backup trovato, niente da ripristinare"
+    fi
+}
+
+
 patch_volume_manager() {
     local PATCH_SCRIPT="/opt/stack/cinder-compliance/devstack/patch_volume_manager.py"
 
@@ -105,8 +139,11 @@ if [[ "$1" == "stack" && "$2" == "install" ]]; then
     install_fio || exit 1
     install_performance_collector || exit 1
     install_weigher_extension || exit 1
+	backup_volume_manager || exit 1
 	patch_volume_manager || exit 1
 elif [[ "$1" == "stack" && "$2" == "post-config" ]]; then
     configure_performance_collector || exit 1
     configure_weigher_extension || exit 1
+elif [[ "$1" == "unstack" ]]; then
+    restore_volume_manager || exit 1
 fi
