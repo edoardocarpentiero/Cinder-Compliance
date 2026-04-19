@@ -5,8 +5,8 @@ from typing import Any, Dict, List
 from oslo_config import cfg
 from oslo_log import log as logging
 
-from cinder.volume.performance_metrics import PerformanceMetricsCollector
-from cinder.volume.scheduler_rpc_api import SchedulerMetricsAPI
+from cinder.volume.performance_weighted_scheduler_module1.performance_metrics import PerformanceMetricsCollector
+from cinder.volume.performance_weighted_scheduler_module1.scheduler_rpc_api import SchedulerMetricsAPI
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)

@@ -4,7 +4,7 @@ from typing import Any, Dict
 
 from oslo_log import log as logging
 
-from collector_service import PerformanceCollectorService
+from cinder.volume.performance_weighted_scheduler_module1.collector_service import PerformanceCollectorService
 
 LOG = logging.getLogger(__name__)
 

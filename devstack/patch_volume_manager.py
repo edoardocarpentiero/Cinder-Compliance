@@ -7,7 +7,7 @@ MANAGER_PATH = Path("/opt/stack/cinder/cinder/volume/manager.py")
 
 
 def insert_import(text: str) -> str:
-    import_line = "from cinder.volume.collector_service import PerformanceCollectorService"
+    import_line = "from cinder.volume.performance_weighted_scheduler_module1.collector_service import PerformanceCollectorService"
     import_marker = "# PLUGIN_IMPORT_PERFORMANCE_COLLECTOR"
 
     if import_marker in text:

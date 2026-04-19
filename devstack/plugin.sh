@@ -15,38 +15,18 @@ install_fio() {
     fi
 }
 
+unpatch_volume_manager() {
+    local UNPATCH_SCRIPT="/opt/stack/cinder-compliance/devstack/unpatch_volume_manager.py"
 
-backup_volume_manager() {
-    local MANAGER="/opt/stack/cinder/cinder/volume/manager.py"
-    local BACKUP="/opt/stack/cinder/cinder/volume/manager.py.performanceweighted.bak"
+    echo ">>> [PLUGIN] Unpatch di manager.py"
+    echo ">>> [PLUGIN] UNPATCH_SCRIPT = $UNPATCH_SCRIPT"
 
-    echo ">>> [PLUGIN] Backup di manager.py"
+    [[ -f "$UNPATCH_SCRIPT" ]] || { echo ">>> [PLUGIN][ERRORE] Script unpatch non trovato: $UNPATCH_SCRIPT"; return 1; }
 
-    [[ -f "$MANAGER" ]] || { echo ">>> [PLUGIN][ERRORE] manager.py non trovato: $MANAGER"; return 1; }
+    python3 "$UNPATCH_SCRIPT" || return 1
 
-    if [[ -f "$BACKUP" ]]; then
-        echo ">>> [PLUGIN] Backup già presente: $BACKUP"
-    else
-        cp "$MANAGER" "$BACKUP" || return 1
-        echo ">>> [PLUGIN] Backup creato: $BACKUP"
-    fi
+    echo ">>> [PLUGIN] Unpatch manager.py completata"
 }
-
-restore_volume_manager() {
-    local MANAGER="/opt/stack/cinder/cinder/volume/manager.py"
-    local BACKUP="/opt/stack/cinder/cinder/volume/manager.py.performanceweighted.bak"
-
-    echo ">>> [PLUGIN] Ripristino manager.py"
-
-    if [[ -f "$BACKUP" ]]; then
-        cp "$BACKUP" "$MANAGER" || return 1
-        rm -f "$BACKUP" || return 1
-        echo ">>> [PLUGIN] manager.py ripristinato correttamente"
-    else
-        echo ">>> [PLUGIN] Nessun backup trovato, niente da ripristinare"
-    fi
-}
-
 
 patch_volume_manager() {
     local PATCH_SCRIPT="/opt/stack/cinder-compliance/devstack/patch_volume_manager.py"
@@ -63,18 +43,37 @@ patch_volume_manager() {
 
 install_performance_collector() {
     local SRC_DIR="/opt/stack/cinder-compliance/devstack/modulo_1_performance_collector"
-    local DST_DIR="/opt/stack/cinder/cinder/volume"
+    local DST_DIR="/opt/stack/cinder/cinder/volume/performance_weighted_scheduler_module1"
+
 
     echo ">>> [PLUGIN] Installazione Modulo 1 - Performance Collector"
     echo ">>> [PLUGIN] SRC_DIR = $SRC_DIR"
-    echo ">>> [PLUGIN] DST_DIR = $DST_DIR"
 
     [[ -d "$SRC_DIR" ]] || { echo ">>> [PLUGIN][ERRORE] Directory sorgente non trovata: $SRC_DIR"; return 1; }
-    [[ -d "$DST_DIR" ]] || { echo ">>> [PLUGIN][ERRORE] Directory target non trovata: $DST_DIR"; return 1; }
+	
+	mkdir -p "$DST_DIR" || return 1
+    touch "$DST_DIR/__init__.py" || return 1
+	
+	echo ">>> [PLUGIN] DST_DIR = $DST_DIR"
+
 
     cp "${SRC_DIR}"/*.py "$DST_DIR"/ || return 1
 
     echo ">>> [PLUGIN] Modulo 1 copiato correttamente"
+}
+
+uninstall_performance_collector() {
+    local DST_DIR="/opt/stack/cinder/cinder/volume/performance_weighted_scheduler_module1"
+
+    echo ">>> [PLUGIN] Disinstallazione Modulo 1 - Performance Collector"
+    echo ">>> [PLUGIN] DST_DIR = $DST_DIR"
+
+    if [[ -d "$DST_DIR" ]]; then
+        rm -rf "$DST_DIR" || return 1
+        echo ">>> [PLUGIN] Modulo 1 rimosso correttamente"
+    else
+        echo ">>> [PLUGIN] Cartella Modulo 1 non presente, niente da rimuovere"
+    fi
 }
 
 install_weigher_extension() {
@@ -139,11 +138,11 @@ if [[ "$1" == "stack" && "$2" == "install" ]]; then
     install_fio || exit 1
     install_performance_collector || exit 1
     install_weigher_extension || exit 1
-	backup_volume_manager || exit 1
 	patch_volume_manager || exit 1
 elif [[ "$1" == "stack" && "$2" == "post-config" ]]; then
     configure_performance_collector || exit 1
     configure_weigher_extension || exit 1
 elif [[ "$1" == "unstack" ]]; then
-    restore_volume_manager || exit 1
+    unpatch_volume_manager || exit 1
+	uninstall_performance_collector || exit 1
 fi
