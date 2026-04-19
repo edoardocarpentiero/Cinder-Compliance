@@ -20,7 +20,6 @@ class SchedulerMetricsAPI:
             topic="scheduler_metrics",
             version=self.RPC_API_VERSION,
         )
-
         transport = oslo_messaging.get_rpc_transport(CONF)
         self.client = oslo_messaging.get_rpc_client(transport, target)
 
@@ -40,12 +39,7 @@ class SchedulerMetricsAPI:
         try:
             cctxt = self.client.prepare()
             cctxt.cast(context, "update_backend_metrics", metrics=metrics)
-
-            LOG.info(
-                "Metrics sent successfully for backend '%s'",
-                metrics.get("backend"),
-            )
-
+            LOG.info("Metrics sent successfully for backend '%s'", metrics.get("backend"))
         except Exception:
             LOG.exception(
                 "Failed to send metrics for backend '%s'",

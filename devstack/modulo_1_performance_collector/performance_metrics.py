@@ -78,9 +78,7 @@ class PerformanceMetricsCollector:
                 "updated_at": time.time(),
             }
 
-            LOG.info("iostat collection completed successfully for backend '%s'", backend_name)
-            LOG.info("Collected metrics: %s", metrics)
-
+            LOG.info("Collected metrics for backend '%s': %s", backend_name, metrics)
             return metrics
 
         except subprocess.CalledProcessError:

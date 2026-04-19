@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 from oslo_config import cfg
 from oslo_log import log as logging
 
+from cinder import context as cinder_context
 from cinder.volume.performance_weighted_scheduler_module1.performance_metrics import (
     PerformanceMetricsCollector,
 )
@@ -24,13 +25,6 @@ class PerformanceCollectorService:
         self.rpc_api = SchedulerMetricsAPI()
 
     def _resolve_iostat_device_from_vg(self, volume_group: str) -> Optional[str]:
-        """
-        Prova a ricavare il device Linux associato al volume group.
-        Esempi di ritorno:
-        - loop8
-        - sdb
-        - dm-3
-        """
         try:
             LOG.info("Resolving iostat device from volume group '%s'", volume_group)
 
@@ -56,7 +50,6 @@ class PerformanceCollectorService:
                 return None
 
             device_name = pv_name.split("/")[-1]
-
             LOG.info(
                 "Resolved volume group '%s' to iostat device '%s'",
                 volume_group,
@@ -95,7 +88,7 @@ class PerformanceCollectorService:
                 continue
 
             backend_name = getattr(group, "volume_backend_name", backend_section)
-            storage_type = getattr(group, "storage_type_plugin", "LVM")
+            storage_type = getattr(group, "my_storage_type", "LVM")
             device_name = getattr(group, "iostat_device", None)
 
             if device_name:
@@ -145,92 +138,19 @@ class PerformanceCollectorService:
 
                 metrics["backend_section"] = backend.get("backend_section")
 
-                LOG.info("Collected metrics for backend '%s': %s", backend_name, metrics)
-
                 self.rpc_api.push_backend_metrics(context, metrics)
-
                 LOG.info("Metrics published successfully for backend '%s'", backend_name)
 
             except Exception:
                 LOG.exception("Failed to collect/publish metrics for backend '%s'", backend_name)
 
-    def update_all_backend_metrics(self, context: Any) -> None:
+    def update_all_backend_metrics(self, context: Any | None = None) -> None:
         LOG.info("Starting update_all_backend_metrics")
+
+        if context is None:
+            context = cinder_context.get_admin_context()
 
         backends = self._load_backends_from_conf()
         self.publish_all_backend_metrics(context, backends)
 
         LOG.info("Completed update_all_backend_metrics")
-
-    def update_current_backend_metrics(
-        self,
-        context: Any,
-        group: Any,
-        backend_section: str,
-    ) -> None:
-        """
-        Aggiorna le metriche solo del backend corrente gestito
-        da questa istanza di cinder-volume.
-        """
-        LOG.info(
-            "Starting update_current_backend_metrics for backend section '%s'",
-            backend_section,
-        )
-
-        backend_name = getattr(group, "volume_backend_name", backend_section)
-        storage_type = getattr(group, "storage_type", "LVM")
-        device_name = getattr(group, "iostat_device", None)
-
-        if device_name:
-            LOG.info(
-                "Backend '%s': using configured iostat_device '%s'",
-                backend_name,
-                device_name,
-            )
-        else:
-            volume_group = getattr(group, "volume_group", None)
-            if volume_group:
-                device_name = self._resolve_iostat_device_from_vg(volume_group)
-
-        if not device_name:
-            LOG.warning(
-                "Backend '%s': unable to determine iostat device; skipping metric update",
-                backend_name,
-            )
-            return
-
-        metrics = self.collector.collect_iostat_metrics(
-            backend_name=backend_name,
-            storage_type=storage_type,
-            device_name=device_name,
-        )
-
-        metrics["backend_section"] = backend_section
-
-        LOG.info("Collected metrics for current backend '%s': %s", backend_name, metrics)
-
-        self.rpc_api.push_backend_metrics(context, metrics)
-
-        LOG.info("Completed update_current_backend_metrics for backend '%s'", backend_name)
-
-    def get_backend_metrics(
-        self,
-        backend_name: str,
-        storage_type: str,
-        device_name: str,
-    ) -> Dict[str, Any]:
-        LOG.info(
-            "Fetching on-demand metrics for backend='%s', storage_type='%s', device_name='%s'",
-            backend_name,
-            storage_type,
-            device_name,
-        )
-
-        metrics = self.collector.collect_iostat_metrics(
-            backend_name=backend_name,
-            storage_type=storage_type,
-            device_name=device_name,
-        )
-
-        LOG.info("On-demand metrics collected for backend '%s': %s", backend_name, metrics)
-        return metrics

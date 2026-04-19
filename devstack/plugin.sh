@@ -15,47 +15,18 @@ install_sysstat() {
     fi
 }
 
-unpatch_volume_manager() {
-    local UNPATCH_SCRIPT="/opt/stack/performance-weighted-scheduler/devstack/unpatch_volume_manager.py"
-
-    echo ">>> [PLUGIN] Unpatch di manager.py"
-    echo ">>> [PLUGIN] UNPATCH_SCRIPT = $UNPATCH_SCRIPT"
-
-    [[ -f "$UNPATCH_SCRIPT" ]] || { echo ">>> [PLUGIN][ERRORE] Script unpatch non trovato: $UNPATCH_SCRIPT"; return 1; }
-
-    python3 "$UNPATCH_SCRIPT" || return 1
-
-    echo ">>> [PLUGIN] Unpatch manager.py completata"
-}
-
-patch_volume_manager() {
-    local PATCH_SCRIPT="/opt/stack/performance-weighted-scheduler/devstack/patch_volume_manager.py"
-
-    echo ">>> [PLUGIN] Patch di manager.py"
-    echo ">>> [PLUGIN] PATCH_SCRIPT = $PATCH_SCRIPT"
-
-    [[ -f "$PATCH_SCRIPT" ]] || { echo ">>> [PLUGIN][ERRORE] Script patch non trovato: $PATCH_SCRIPT"; return 1; }
-
-    python3 "$PATCH_SCRIPT" || return 1
-
-    echo ">>> [PLUGIN] Patch manager.py completata"
-}
-
 install_performance_collector() {
     local SRC_DIR="/opt/stack/performance-weighted-scheduler/devstack/modulo_1_performance_collector"
     local DST_DIR="/opt/stack/cinder/cinder/volume/performance_weighted_scheduler_module1"
 
-
     echo ">>> [PLUGIN] Installazione Modulo 1 - Performance Collector"
     echo ">>> [PLUGIN] SRC_DIR = $SRC_DIR"
+    echo ">>> [PLUGIN] DST_DIR = $DST_DIR"
 
     [[ -d "$SRC_DIR" ]] || { echo ">>> [PLUGIN][ERRORE] Directory sorgente non trovata: $SRC_DIR"; return 1; }
-	
-	mkdir -p "$DST_DIR" || return 1
-    touch "$DST_DIR/__init__.py" || return 1
-	
-	echo ">>> [PLUGIN] DST_DIR = $DST_DIR"
 
+    mkdir -p "$DST_DIR" || return 1
+    touch "$DST_DIR/__init__.py" || return 1
 
     cp "${SRC_DIR}"/*.py "$DST_DIR"/ || return 1
 
@@ -77,20 +48,30 @@ uninstall_performance_collector() {
 }
 
 install_weigher_extension() {
-    local SRC="/opt/stack/performance-weighted-scheduler/devstack/modulo_2_weigher_extension/performance_weigher.py"
-    local DST="/opt/stack/cinder/cinder/scheduler/weights/performance_weigher.py"
+    local SRC_DIR="/opt/stack/performance-weighted-scheduler/devstack/modulo_2_weigher_extension"
+    local WEIGHTS_DIR="/opt/stack/cinder/cinder/scheduler/weights"
+    local MODULE2_DIR="/opt/stack/cinder/cinder/scheduler/performance_weighted_scheduler_module2"
     local CINDER_DIR="/opt/stack/cinder"
     local PYPROJECT="${CINDER_DIR}/pyproject.toml"
     local ENTRY='PerformanceWeigher = "cinder.scheduler.weights.performance_weigher:PerformanceWeigher"'
 
     echo ">>> [PLUGIN] Installazione Modulo 2 - Weigher Extension"
-    echo ">>> [PLUGIN] SRC = $SRC"
-    echo ">>> [PLUGIN] DST = $DST"
+    echo ">>> [PLUGIN] SRC_DIR = $SRC_DIR"
+    echo ">>> [PLUGIN] WEIGHTS_DIR = $WEIGHTS_DIR"
+    echo ">>> [PLUGIN] MODULE2_DIR = $MODULE2_DIR"
 
-    [[ -f "$SRC" ]] || { echo ">>> [PLUGIN][ERRORE] File sorgente non trovato: $SRC"; return 1; }
+    [[ -d "$SRC_DIR" ]] || { echo ">>> [PLUGIN][ERRORE] Directory sorgente non trovata: $SRC_DIR"; return 1; }
+    [[ -d "$WEIGHTS_DIR" ]] || { echo ">>> [PLUGIN][ERRORE] Directory target weights non trovata: $WEIGHTS_DIR"; return 1; }
     [[ -f "$PYPROJECT" ]] || { echo ">>> [PLUGIN][ERRORE] pyproject.toml non trovato: $PYPROJECT"; return 1; }
 
-    cp "$SRC" "$DST" || return 1
+    mkdir -p "$MODULE2_DIR" || return 1
+    touch "$MODULE2_DIR/__init__.py" || return 1
+
+    echo ">>> [PLUGIN] Copia performance_weigher.py in scheduler/weights"
+    cp "${SRC_DIR}/performance_weigher.py" "${WEIGHTS_DIR}/performance_weigher.py" || return 1
+
+    echo ">>> [PLUGIN] Copia file di supporto del Modulo 2 nella cartella dedicata"
+    find "$SRC_DIR" -maxdepth 1 -type f -name "*.py" ! -name "performance_weigher.py" -exec cp {} "$MODULE2_DIR"/ \; || return 1
 
     echo ">>> [PLUGIN] Verifica entry point in pyproject.toml"
 
@@ -108,6 +89,27 @@ install_weigher_extension() {
     echo ">>> [PLUGIN] Modulo 2 installato correttamente"
 }
 
+uninstall_weigher_extension() {
+    local MODULE2_DIR="/opt/stack/cinder/cinder/scheduler/performance_weighted_scheduler_module2"
+    local WEIGHER_FILE="/opt/stack/cinder/cinder/scheduler/weights/performance_weigher.py"
+
+    echo ">>> [PLUGIN] Disinstallazione Modulo 2 - Weigher Extension"
+
+    if [[ -d "$MODULE2_DIR" ]]; then
+        rm -rf "$MODULE2_DIR" || return 1
+        echo ">>> [PLUGIN] Cartella Modulo 2 rimossa correttamente"
+    else
+        echo ">>> [PLUGIN] Cartella Modulo 2 non presente"
+    fi
+
+    if [[ -f "$WEIGHER_FILE" ]]; then
+        rm -f "$WEIGHER_FILE" || return 1
+        echo ">>> [PLUGIN] File performance_weigher.py rimosso"
+    else
+        echo ">>> [PLUGIN] performance_weigher.py non presente"
+    fi
+}
+
 configure_performance_collector() {
     local CONF="/etc/cinder/cinder.conf"
 
@@ -117,8 +119,10 @@ configure_performance_collector() {
     [[ -f "$CONF" ]] || { echo ">>> [PLUGIN][ERRORE] File di configurazione non trovato: $CONF"; return 1; }
 
     iniset "$CONF" DEFAULT debug True || return 1
+    iniset "$CONF" DEFAULT performance_collector_interval 30 || return 1
 
     echo ">>> [PLUGIN] debug = True"
+    echo ">>> [PLUGIN] performance_collector_interval = 30"
 }
 
 configure_weigher_extension() {
@@ -134,15 +138,48 @@ configure_weigher_extension() {
     echo ">>> [PLUGIN] scheduler_default_weighers = PerformanceWeigher"
 }
 
+start_performance_collector_daemon() {
+    local CINDER_DIR="/opt/stack/cinder"
+    local MODULE1_PKG="cinder.volume.performance_weighted_scheduler_module1.collector_daemon"
+
+    echo ">>> [PLUGIN] Avvio collector periodico"
+    echo ">>> [PLUGIN] CINDER_DIR = $CINDER_DIR"
+    echo ">>> [PLUGIN] MODULE1_PKG = $MODULE1_PKG"
+
+    cd "$CINDER_DIR" || return 1
+
+    nohup python3 -m "$MODULE1_PKG" \
+        >/tmp/performance_weighted_scheduler_collector.log 2>&1 &
+
+    echo $! >/tmp/performance_weighted_scheduler_collector.pid
+
+    echo ">>> [PLUGIN] Collector periodico avviato con PID $(cat /tmp/performance_weighted_scheduler_collector.pid)"
+}
+
+stop_performance_collector_daemon() {
+    local PID_FILE="/tmp/performance_weighted_scheduler_collector.pid"
+
+    echo ">>> [PLUGIN] Arresto collector periodico"
+
+    if [[ -f "$PID_FILE" ]]; then
+        kill "$(cat "$PID_FILE")" || true
+        rm -f "$PID_FILE"
+        echo ">>> [PLUGIN] Collector periodico arrestato"
+    else
+        echo ">>> [PLUGIN] Nessun PID file trovato, niente da arrestare"
+    fi
+}
+
 if [[ "$1" == "stack" && "$2" == "install" ]]; then
     install_sysstat || exit 1
     install_performance_collector || exit 1
-    #install_weigher_extension || exit 1
+    install_weigher_extension || exit 1
 elif [[ "$1" == "stack" && "$2" == "post-config" ]]; then
     configure_performance_collector || exit 1
-    #configure_weigher_extension || exit 1
-	patch_volume_manager || exit 1
+    configure_weigher_extension || exit 1
+    start_performance_collector_daemon || exit 1
 elif [[ "$1" == "unstack" ]]; then
-    unpatch_volume_manager || exit 1
-	uninstall_performance_collector || exit 1
+    stop_performance_collector_daemon || exit 1
+    uninstall_performance_collector || exit 1
+    uninstall_weigher_extension || exit 1
 fi

@@ -32,24 +32,15 @@ class VolumeMetricsEndpoint:
             device_name,
         )
 
-        try:
-            metrics = self.collector_service.get_backend_metrics(
-                backend_name=backend_name,
-                storage_type=storage_type,
-                device_name=device_name,
-            )
+        metrics = self.collector_service.collector.collect_iostat_metrics(
+            backend_name=backend_name,
+            storage_type=storage_type,
+            device_name=device_name,
+        )
 
-            LOG.info(
-                "Fallback metrics collected successfully for backend '%s': %s",
-                backend_name,
-                metrics,
-            )
-
-            return metrics
-
-        except Exception:
-            LOG.exception(
-                "Failed to fetch fallback metrics for backend '%s'",
-                backend_name,
-            )
-            raise
+        LOG.info(
+            "Fallback metrics collected successfully for backend '%s': %s",
+            backend_name,
+            metrics,
+        )
+        return metrics
