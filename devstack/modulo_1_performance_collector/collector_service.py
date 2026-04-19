@@ -96,7 +96,6 @@ class PerformanceCollectorService:
 
             backend_name = getattr(group, "volume_backend_name", backend_section)
             storage_type = getattr(group, "storage_type", "LVM")
-            performance_index = getattr(group, "my_custom_performance_index", 0)
 
             device_name = getattr(group, "iostat_device", None)
 
@@ -122,7 +121,6 @@ class PerformanceCollectorService:
                 "backend": backend_name,
                 "storage_type": storage_type,
                 "device_name": device_name,
-                "performance_index": performance_index,
                 "backend_section": backend_section,
             }
 
