@@ -27,7 +27,7 @@ class PerformanceCollectorService:
         self.rpc_api = SchedulerMetricsAPI()
 
     def _load_parser(self) -> configparser.ConfigParser:
-        parser = configparser.ConfigParser()
+        parser = configparser.ConfigParser(interpolation=None)
         read_files = parser.read(self.conf_path)
 
         if not read_files:

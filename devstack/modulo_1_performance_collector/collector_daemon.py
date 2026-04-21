@@ -25,7 +25,7 @@ def _handle_signal(signum, frame) -> None:
 
 
 def _load_interval_from_conf(conf_path: str) -> int:
-    parser = configparser.ConfigParser()
+    parser = configparser.ConfigParser(interpolation=None)
     read_files = parser.read(conf_path)
 
     if not read_files:
