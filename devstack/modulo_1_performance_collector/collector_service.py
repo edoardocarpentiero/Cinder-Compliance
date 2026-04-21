@@ -41,12 +41,12 @@ class PerformanceCollectorService:
             LOG.info("Resolving iostat device from volume group '%s'", volume_group)
 
             cmd = [
-                "pvs",
+                "sudo",
+                "vgs",
                 "--noheadings",
                 "-o",
                 "pv_name",
-                "--select",
-                f"vg_name={volume_group}",
+                volume_group,
             ]
 
             result = subprocess.run(

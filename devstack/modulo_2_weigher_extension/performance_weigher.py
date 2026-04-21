@@ -13,11 +13,12 @@ LOG = logging.getLogger(__name__)
 
 
 class PerformanceWeigher(weights.BaseHostWeigher):
-    CACHE: BackendMetricsCache | None = None
-
-    @classmethod
-    def set_cache(cls, cache: BackendMetricsCache) -> None:
-        cls.CACHE = cache
+    def __init__(
+        self,
+        cache: BackendMetricsCache,
+    ) -> None:
+        super().__init__()
+        self.cache = cache
 
     def weight_multiplier(self) -> float:
         return 1.0
@@ -25,10 +26,11 @@ class PerformanceWeigher(weights.BaseHostWeigher):
     def _weigh_object(self, host_state: Any, weight_properties: Dict[str, Any]) -> float:
         backend_name = self._extract_backend_name(host_state)
 
-        metrics = self.CACHE.get(backend_name) if self.CACHE else None
-        if metrics is None or (self.CACHE and self.CACHE.is_stale(backend_name)):
-            LOG.info(
-                "Metrics cache miss/stale for backend '%s', using penalized score",
+        metrics = self.cache.get(backend_name)
+
+        if metrics is None or self.cache.is_stale(backend_name):
+            LOG.warning(
+                "No fresh metrics available for backend '%s', using default penalty values",
                 backend_name,
             )
             metrics = {
@@ -56,9 +58,10 @@ class PerformanceWeigher(weights.BaseHostWeigher):
         )
 
         LOG.info(
-            "Backend '%s': free=%s iops=%s latency=%s throughput=%s saturation=%s score=%s",
+            "Backend '%s': free=%s allocated=%s iops=%s latency=%s throughput=%s saturation=%s score=%s",
             backend_name,
             free_capacity,
+            allocated_capacity,
             iops,
             latency_ms,
             throughput_kb_s,

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import oslo_messaging
 from oslo_config import cfg
+from oslo_log import log as logging
 
 from cinder.scheduler.performance_weighted_scheduler_module2.metrics_cache import (
     BackendMetricsCache,
@@ -12,11 +13,35 @@ from cinder.scheduler.performance_weighted_scheduler_module2.scheduler_metrics_e
 from cinder.scheduler.weights.performance_weigher import PerformanceWeigher
 
 CONF = cfg.CONF
+LOG = logging.getLogger(__name__)
+
+_CONF_INITIALIZED = False
+
+
+def _init_conf() -> None:
+    global _CONF_INITIALIZED
+
+    if _CONF_INITIALIZED:
+        return
+
+    CONF(
+        args=[],
+        project="cinder",
+        default_config_files=["/etc/cinder/cinder.conf"],
+    )
+
+    logging.register_options(CONF)
+    logging.setup(CONF, "performance-weighted-scheduler-bootstrap")
+
+    _CONF_INITIALIZED = True
+
+    LOG.info("Scheduler bootstrap configuration loaded from /etc/cinder/cinder.conf")
 
 
 def init_scheduler_plugin():
-    cache = BackendMetricsCache(ttl_seconds=60)
+    _init_conf()
 
+    cache = BackendMetricsCache(ttl_seconds=60)
     endpoint = SchedulerMetricsEndpoint(cache=cache)
 
     transport = oslo_messaging.get_rpc_transport(CONF)
@@ -33,9 +58,14 @@ def init_scheduler_plugin():
     )
     server.start()
 
-    PerformanceWeigher.set_cache(cache)
+    LOG.info("Scheduler metrics RPC server started on topic='scheduler_metrics'")
+
+    weigher = PerformanceWeigher(
+        cache=cache,
+    )
 
     return {
         "cache": cache,
         "rpc_server": server,
+        "weigher": weigher,
     }
