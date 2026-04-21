@@ -4,10 +4,8 @@ from typing import Any, Dict
 
 import oslo_messaging
 from oslo_config import cfg
-from oslo_log import log as logging
 
 CONF = cfg.CONF
-LOG = logging.getLogger(__name__)
 
 _CONF_INITIALIZED = False
 
@@ -15,7 +13,10 @@ _CONF_INITIALIZED = False
 def _init_conf() -> None:
     global _CONF_INITIALIZED
 
+    print("[DEBUG][scheduler_rpc_api] entering _init_conf()", flush=True)
+
     if _CONF_INITIALIZED:
+        print("[DEBUG][scheduler_rpc_api] CONF already initialized", flush=True)
         return
 
     CONF(
@@ -26,14 +27,18 @@ def _init_conf() -> None:
 
     _CONF_INITIALIZED = True
 
-    LOG.info("RPC configuration loaded from /etc/cinder/cinder.conf")
+    print(
+        "[DEBUG][scheduler_rpc_api] RPC configuration loaded from "
+        "/etc/cinder/cinder.conf",
+        flush=True,
+    )
 
 
 class SchedulerMetricsAPI:
     RPC_API_VERSION = "1.0"
 
     def __init__(self) -> None:
-        LOG.info("Initializing SchedulerMetricsAPI")
+        print("[DEBUG][scheduler_rpc_api] Initializing SchedulerMetricsAPI", flush=True)
 
         _init_conf()
 
@@ -42,35 +47,51 @@ class SchedulerMetricsAPI:
             version=self.RPC_API_VERSION,
         )
 
+        print(
+            f"[DEBUG][scheduler_rpc_api] Target created: topic='{target.topic}', "
+            f"version='{target.version}'",
+            flush=True,
+        )
+
+        print("[DEBUG][scheduler_rpc_api] Creating RPC transport", flush=True)
         transport = oslo_messaging.get_rpc_transport(CONF)
+
+        print("[DEBUG][scheduler_rpc_api] Creating RPC client", flush=True)
         self.client = oslo_messaging.get_rpc_client(transport, target)
 
-        LOG.info(
-            "SchedulerMetricsAPI initialized with topic='%s', version='%s'",
-            target.topic,
-            target.version,
+        print(
+            "[DEBUG][scheduler_rpc_api] SchedulerMetricsAPI initialized successfully",
+            flush=True,
         )
 
     def push_backend_metrics(self, context: Any, metrics: Dict[str, Any]) -> None:
-        LOG.info(
-            "Sending backend metrics to scheduler for backend '%s'",
-            metrics.get("backend"),
+        print(
+            f"[DEBUG][scheduler_rpc_api] Sending backend metrics for "
+            f"backend='{metrics.get('backend')}'",
+            flush=True,
         )
 
-        LOG.debug("Metrics payload: %s", metrics)
+        print(
+            f"[DEBUG][scheduler_rpc_api] Payload={metrics}",
+            flush=True,
+        )
 
         try:
             cctxt = self.client.prepare()
+            print("[DEBUG][scheduler_rpc_api] RPC context prepared", flush=True)
+
             cctxt.cast(context, "update_backend_metrics", metrics=metrics)
 
-            LOG.info(
-                "Metrics sent successfully for backend '%s'",
-                metrics.get("backend"),
+            print(
+                f"[DEBUG][scheduler_rpc_api] Metrics sent successfully for "
+                f"backend='{metrics.get('backend')}'",
+                flush=True,
             )
 
-        except Exception:
-            LOG.exception(
-                "Failed to send metrics for backend '%s'",
-                metrics.get("backend"),
+        except Exception as exc:
+            print(
+                f"[ERROR][scheduler_rpc_api] Failed to send metrics for "
+                f"backend='{metrics.get('backend')}': {exc}",
+                flush=True,
             )
             raise

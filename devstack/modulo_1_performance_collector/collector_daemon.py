@@ -40,10 +40,7 @@ def _load_interval_from_conf(conf_path: str) -> int:
     print(f"[DEBUG] parser.read returned: {read_files}", flush=True)
 
     if not read_files:
-        LOG.warning(
-            "Unable to read '%s', using default performance_collector_interval=30",
-            conf_path,
-        )
+        print(f"[DEBUG] Unable to read '{conf_path}', using default performance_collector_interval=30: {read_files}", flush=True)
         return 30
 
     value = parser.get("DEFAULT", "performance_collector_interval", fallback="30")
@@ -62,11 +59,6 @@ def _load_interval_from_conf(conf_path: str) -> int:
     except Exception as exc:
         print(f"[DEBUG] failed to parse interval: {exc}", flush=True)
 
-        LOG.warning(
-            "Invalid performance_collector_interval='%s' in '%s', using default 30",
-            value,
-            conf_path,
-        )
         return 30
 
 
@@ -84,13 +76,8 @@ def main() -> int:
 
     print(f"[DEBUG] interval loaded: {interval}", flush=True)
 
-    LOG.info(
-        "Starting Performance Collector daemon with interval=%s seconds, conf_path='%s'",
-        interval,
-        CINDER_CONF_PATH,
-    )
+    print(f"[DEBUG] Starting Performance Collector daemon with interval={interval} seconds, conf_path='{CINDER_CONF_PATH}'", flush=True)
 
-    print("[DEBUG] creating PerformanceCollectorService", flush=True)
 
     collector = PerformanceCollectorService(conf_path=CINDER_CONF_PATH)
 
@@ -104,11 +91,7 @@ def main() -> int:
         try:
             print("[DEBUG] starting periodic collection cycle", flush=True)
 
-            LOG.info("Starting periodic collection cycle")
-
             collector.update_all_backend_metrics(admin_context)
-
-            LOG.info("Completed periodic collection cycle")
 
             print("[DEBUG] completed periodic collection cycle", flush=True)
 
@@ -123,7 +106,6 @@ def main() -> int:
         print(f"[DEBUG] sleeping for {interval} seconds", flush=True)
         time.sleep(interval)
 
-    LOG.info("Performance Collector daemon stopped")
 
     print("[DEBUG] collector daemon stopped", flush=True)
 

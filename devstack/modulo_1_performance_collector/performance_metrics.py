@@ -5,10 +5,6 @@ import subprocess
 import time
 from typing import Any, Dict
 
-from oslo_log import log as logging
-
-LOG = logging.getLogger(__name__)
-
 
 class PerformanceMetricsCollector:
     """Raccoglie metriche prestazionali dei backend tramite iostat."""
@@ -19,11 +15,11 @@ class PerformanceMetricsCollector:
         storage_type: str,
         device_name: str,
     ) -> Dict[str, Any]:
-        LOG.info(
-            "Starting iostat collection for backend='%s', storage_type='%s', device='%s'",
-            backend_name,
-            storage_type,
-            device_name,
+        print(
+            f"[DEBUG][performance_metrics] Starting iostat collection for "
+            f"backend='{backend_name}', storage_type='{storage_type}', "
+            f"device='{device_name}'",
+            flush=True,
         )
 
         cmd = [
@@ -36,7 +32,10 @@ class PerformanceMetricsCollector:
             "2",
         ]
 
-        LOG.debug("Executing iostat command: %s", " ".join(cmd))
+        print(
+            f"[DEBUG][performance_metrics] Executing command: {' '.join(cmd)}",
+            flush=True,
+        )
 
         try:
             result = subprocess.run(
@@ -46,7 +45,14 @@ class PerformanceMetricsCollector:
                 check=True,
             )
 
-            LOG.debug("iostat stdout: %s", result.stdout)
+            print(
+                f"[DEBUG][performance_metrics] iostat stdout: {result.stdout}",
+                flush=True,
+            )
+            print(
+                f"[DEBUG][performance_metrics] iostat stderr: {result.stderr}",
+                flush=True,
+            )
 
             data = json.loads(result.stdout)
             stats = data["sysstat"]["hosts"][0]["statistics"][-1]["disk"]
@@ -78,12 +84,24 @@ class PerformanceMetricsCollector:
                 "updated_at": time.time(),
             }
 
-            LOG.info("Collected metrics for backend '%s': %s", backend_name, metrics)
+            print(
+                f"[DEBUG][performance_metrics] Collected metrics for backend "
+                f"'{backend_name}': {metrics}",
+                flush=True,
+            )
             return metrics
 
-        except subprocess.CalledProcessError:
-            LOG.exception("iostat execution failed for backend '%s'", backend_name)
+        except subprocess.CalledProcessError as exc:
+            print(
+                f"[ERROR][performance_metrics] iostat execution failed for backend "
+                f"'{backend_name}': {exc}",
+                flush=True,
+            )
             raise
-        except Exception:
-            LOG.exception("Unexpected error during iostat collection for backend '%s'", backend_name)
+        except Exception as exc:
+            print(
+                f"[ERROR][performance_metrics] Unexpected error during iostat "
+                f"collection for backend '{backend_name}': {exc}",
+                flush=True,
+            )
             raise

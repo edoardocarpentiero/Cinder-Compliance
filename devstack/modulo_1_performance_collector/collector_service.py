@@ -5,7 +5,6 @@ import subprocess
 from typing import Any, Dict, List, Optional
 
 from cinder import context as cinder_context
-from oslo_log import log as logging
 
 from cinder.volume.performance_weighted_scheduler_module1.performance_metrics import (
     PerformanceMetricsCollector,
@@ -14,31 +13,53 @@ from cinder.volume.performance_weighted_scheduler_module1.scheduler_rpc_api impo
     SchedulerMetricsAPI,
 )
 
-LOG = logging.getLogger(__name__)
-
 CINDER_CONF_PATH = "/etc/cinder/cinder.conf"
 
 
 class PerformanceCollectorService:
     def __init__(self, conf_path: str = CINDER_CONF_PATH) -> None:
-        LOG.info("Initializing PerformanceCollectorService with conf_path='%s'", conf_path)
+        print(
+            f"[DEBUG][collector_service] Initializing PerformanceCollectorService "
+            f"with conf_path='{conf_path}'",
+            flush=True,
+        )
         self.conf_path = conf_path
         self.collector = PerformanceMetricsCollector()
+        print("[DEBUG][collector_service] PerformanceMetricsCollector created", flush=True)
         self.rpc_api = SchedulerMetricsAPI()
+        print("[DEBUG][collector_service] SchedulerMetricsAPI created", flush=True)
 
     def _load_parser(self) -> configparser.ConfigParser:
+        print(
+            f"[DEBUG][collector_service] Loading parser for '{self.conf_path}'",
+            flush=True,
+        )
+
         parser = configparser.ConfigParser(interpolation=None)
         read_files = parser.read(self.conf_path)
+
+        print(
+            f"[DEBUG][collector_service] parser.read returned: {read_files}",
+            flush=True,
+        )
 
         if not read_files:
             raise RuntimeError(f"Unable to read configuration file: {self.conf_path}")
 
-        LOG.info("Configuration loaded successfully from '%s'", self.conf_path)
+        print(
+            f"[DEBUG][collector_service] Configuration loaded successfully from "
+            f"'{self.conf_path}'",
+            flush=True,
+        )
         return parser
 
     def _resolve_iostat_device_from_vg(self, volume_group: str) -> Optional[str]:
         try:
-            LOG.info("Resolving iostat device from volume group '%s'", volume_group)
+            print(
+                f"[DEBUG][collector_service] Resolving iostat device from "
+                f"volume_group='{volume_group}'",
+                flush=True,
+            )
 
             cmd = [
                 "sudo",
@@ -49,6 +70,11 @@ class PerformanceCollectorService:
                 volume_group,
             ]
 
+            print(
+                f"[DEBUG][collector_service] Executing command: {' '.join(cmd)}",
+                flush=True,
+            )
+
             result = subprocess.run(
                 cmd,
                 capture_output=True,
@@ -56,83 +82,126 @@ class PerformanceCollectorService:
                 check=True,
             )
 
+            print(
+                f"[DEBUG][collector_service] vgs stdout: {result.stdout}",
+                flush=True,
+            )
+            print(
+                f"[DEBUG][collector_service] vgs stderr: {result.stderr}",
+                flush=True,
+            )
+
             pv_name = result.stdout.strip()
 
             if not pv_name:
-                LOG.warning(
-                    "No physical volume found for volume group '%s'",
-                    volume_group,
+                print(
+                    f"[WARN][collector_service] No physical volume found for "
+                    f"volume_group='{volume_group}'",
+                    flush=True,
                 )
                 return None
 
             pv_name = pv_name.splitlines()[0].strip()
             device_name = pv_name.split("/")[-1]
 
-            LOG.info(
-                "Resolved volume group '%s' to iostat device '%s' using physical volume '%s'",
-                volume_group,
-                device_name,
-                pv_name,
+            print(
+                f"[DEBUG][collector_service] Resolved volume_group='{volume_group}' "
+                f"to device_name='{device_name}' using pv_name='{pv_name}'",
+                flush=True,
             )
 
             return device_name
 
-        except Exception:
-            LOG.exception(
-                "Failed to resolve iostat device from volume group '%s'",
-                volume_group,
+        except Exception as exc:
+            print(
+                f"[ERROR][collector_service] Failed to resolve iostat device from "
+                f"volume_group='{volume_group}': {exc}",
+                flush=True,
             )
             return None
 
     def _load_backends_from_conf(self) -> List[Dict[str, Any]]:
-        LOG.info("Loading backend configuration from '%s'", self.conf_path)
+        print(
+            f"[DEBUG][collector_service] Loading backend configuration from "
+            f"'{self.conf_path}'",
+            flush=True,
+        )
 
         parser = self._load_parser()
         backends: List[Dict[str, Any]] = []
 
         enabled_backends_raw = parser.get("DEFAULT", "enabled_backends", fallback="")
+        print(
+            f"[DEBUG][collector_service] enabled_backends raw='{enabled_backends_raw}'",
+            flush=True,
+        )
+
         if not enabled_backends_raw.strip():
-            LOG.warning("No enabled_backends configured in '%s'", self.conf_path)
+            print(
+                f"[WARN][collector_service] No enabled_backends configured in "
+                f"'{self.conf_path}'",
+                flush=True,
+            )
             return backends
 
         enabled_backends = [
             b.strip() for b in enabled_backends_raw.split(",") if b.strip()
         ]
 
-        LOG.info("Detected enabled backends: %s", enabled_backends)
+        print(
+            f"[DEBUG][collector_service] enabled_backends parsed={enabled_backends}",
+            flush=True,
+        )
 
         for backend_section in enabled_backends:
-            LOG.info("Processing backend section: %s", backend_section)
+            print(
+                f"[DEBUG][collector_service] Processing backend_section="
+                f"'{backend_section}'",
+                flush=True,
+            )
 
             if not parser.has_section(backend_section):
-                LOG.warning(
-                    "Backend section '%s' not found in '%s'",
-                    backend_section,
-                    self.conf_path,
+                print(
+                    f"[WARN][collector_service] Backend section '{backend_section}' "
+                    f"not found in '{self.conf_path}'",
+                    flush=True,
                 )
                 continue
 
             backend_conf = dict(parser.items(backend_section))
+            print(
+                f"[DEBUG][collector_service] backend_conf[{backend_section}]="
+                f"{backend_conf}",
+                flush=True,
+            )
 
             backend_name = backend_conf.get("volume_backend_name", backend_section)
             storage_type = backend_conf.get("my_storage_type", "LVM")
             device_name = backend_conf.get("iostat_device")
             volume_group = backend_conf.get("volume_group")
 
+            print(
+                f"[DEBUG][collector_service] backend_name='{backend_name}', "
+                f"storage_type='{storage_type}', device_name='{device_name}', "
+                f"volume_group='{volume_group}'",
+                flush=True,
+            )
+
             if device_name:
-                LOG.info(
-                    "Backend '%s': using configured iostat_device '%s'",
-                    backend_name,
-                    device_name,
+                print(
+                    f"[DEBUG][collector_service] Using configured iostat_device "
+                    f"'{device_name}' for backend '{backend_name}'",
+                    flush=True,
                 )
             else:
                 if volume_group:
                     device_name = self._resolve_iostat_device_from_vg(volume_group)
 
                 if not device_name:
-                    LOG.warning(
-                        "Backend '%s': unable to determine iostat device automatically; skipping",
-                        backend_name,
+                    print(
+                        f"[WARN][collector_service] Backend '{backend_name}': "
+                        f"unable to determine iostat device automatically; skipping",
+                        flush=True,
                     )
                     continue
 
@@ -143,18 +212,31 @@ class PerformanceCollectorService:
                 "backend_section": backend_section,
             }
 
-            LOG.info("Backend configuration loaded: %s", backend_info)
+            print(
+                f"[DEBUG][collector_service] backend_info={backend_info}",
+                flush=True,
+            )
             backends.append(backend_info)
 
-        LOG.info("Loaded %d backend configurations", len(backends))
+        print(
+            f"[DEBUG][collector_service] Loaded {len(backends)} backend configurations",
+            flush=True,
+        )
         return backends
 
     def publish_all_backend_metrics(self, context: Any, backends: List[Dict[str, Any]]) -> None:
-        LOG.info("Publishing metrics for %d backends", len(backends))
+        print(
+            f"[DEBUG][collector_service] Publishing metrics for {len(backends)} backends",
+            flush=True,
+        )
 
         for backend in backends:
             backend_name = backend["backend"]
-            LOG.info("Collecting metrics for backend '%s'", backend_name)
+            print(
+                f"[DEBUG][collector_service] Collecting metrics for backend "
+                f"'{backend_name}'",
+                flush=True,
+            )
 
             try:
                 metrics = self.collector.collect_iostat_metrics(
@@ -165,23 +247,41 @@ class PerformanceCollectorService:
 
                 metrics["backend_section"] = backend.get("backend_section")
 
+                print(
+                    f"[DEBUG][collector_service] metrics for backend "
+                    f"'{backend_name}' = {metrics}",
+                    flush=True,
+                )
+
                 self.rpc_api.push_backend_metrics(context, metrics)
 
-                LOG.info("Metrics published successfully for backend '%s'", backend_name)
+                print(
+                    f"[DEBUG][collector_service] Metrics published successfully for "
+                    f"backend '{backend_name}'",
+                    flush=True,
+                )
 
-            except Exception:
-                LOG.exception("Failed to collect/publish metrics for backend '%s'", backend_name)
+            except Exception as exc:
+                print(
+                    f"[ERROR][collector_service] Failed to collect/publish metrics "
+                    f"for backend '{backend_name}': {exc}",
+                    flush=True,
+                )
 
     def update_all_backend_metrics(self, context: Any | None = None) -> None:
-        LOG.info("Starting update_all_backend_metrics")
+        print("[DEBUG][collector_service] Starting update_all_backend_metrics", flush=True)
 
         if context is None:
+            print(
+                "[DEBUG][collector_service] No context provided, creating admin_context",
+                flush=True,
+            )
             context = cinder_context.get_admin_context()
 
         backends = self._load_backends_from_conf()
         self.publish_all_backend_metrics(context, backends)
 
-        LOG.info("Completed update_all_backend_metrics")
+        print("[DEBUG][collector_service] Completed update_all_backend_metrics", flush=True)
 
     def get_backend_metrics(
         self,
@@ -189,11 +289,11 @@ class PerformanceCollectorService:
         storage_type: str,
         device_name: str,
     ) -> Dict[str, Any]:
-        LOG.info(
-            "Fetching on-demand metrics for backend='%s', storage_type='%s', device_name='%s'",
-            backend_name,
-            storage_type,
-            device_name,
+        print(
+            f"[DEBUG][collector_service] Fetching on-demand metrics for "
+            f"backend='{backend_name}', storage_type='{storage_type}', "
+            f"device_name='{device_name}'",
+            flush=True,
         )
 
         metrics = self.collector.collect_iostat_metrics(
@@ -202,5 +302,9 @@ class PerformanceCollectorService:
             device_name=device_name,
         )
 
-        LOG.info("On-demand metrics collected for backend '%s': %s", backend_name, metrics)
+        print(
+            f"[DEBUG][collector_service] On-demand metrics collected for backend "
+            f"'{backend_name}': {metrics}",
+            flush=True,
+        )
         return metrics
