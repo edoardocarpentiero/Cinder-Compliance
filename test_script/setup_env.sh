@@ -4,6 +4,10 @@ set -e
 
 BASE_DIR="/opt/stack/data"
 DEVSTACK_DIR="$HOME/devstack"
+CINDER_DIR="/opt/stack/cinder"
+MODULE1_PKG="cinder.volume.performance_weighted_scheduler_module1.collector_daemon"
+LOG_FILE="/tmp/performance_weighted_scheduler_collector.log"
+PID_FILE="/tmp/performance_weighted_scheduler_collector.pid"
 
 sudo mkdir -p "$BASE_DIR"
 sudo chown "$USER:$USER" "$BASE_DIR"
