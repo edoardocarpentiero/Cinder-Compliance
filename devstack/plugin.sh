@@ -128,6 +128,8 @@ configure_weigher_extension() {
 
     CURRENT=$(iniget "$CONF" DEFAULT scheduler_default_weighers)
 
+	echo ">>> [PLUGIN] CURRENT scheduler_default_weighers = $CURRENT"
+	
     if [[ -z "$CURRENT" ]]; then
         UPDATED="PerformanceWeigher"
     elif [[ "$CURRENT" == *"PerformanceWeigher"* ]]; then
