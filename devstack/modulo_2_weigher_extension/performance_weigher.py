@@ -7,17 +7,23 @@ from cinder.scheduler.performance_weighted_scheduler_module2.metrics_cache impor
     get_metrics_cache,
 )
 
+from cinder.scheduler.performance_weighted_scheduler_module2.scheduler_bootstrap import (
+    init_scheduler_plugin,
+)
+
 
 class PerformanceWeigher(weights.BaseHostWeigher):
     def __init__(self) -> None:
         super().__init__()
+
+        init_scheduler_plugin()
 
         self.cache = get_metrics_cache()
 
         print("[DEBUG][weigher] PerformanceWeigher inizializzato", flush=True)
 
     def weight_multiplier(self) -> float:
-        return 1.0
+        return 2
 
     def _weigh_object(self, host_state: Any, weight_properties: Dict[str, Any]) -> float:
         host_state_name = getattr(host_state, "host", "")
