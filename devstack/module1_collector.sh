@@ -59,17 +59,25 @@ uninstall_performance_collector() {
 
 configure_performance_collector() {
     local CONF="/etc/cinder/cinder.conf"
+    local CURRENT_INTERVAL
 
     echo ">>> [PLUGIN] Configurazione Modulo 1 - Performance Collector"
-    echo ">>> [PLUGIN] CONF = $CONF"
 
-    [[ -f "$CONF" ]] || { echo ">>> [PLUGIN][ERRORE] File di configurazione non trovato: $CONF"; return 1; }
+    [[ -f "$CONF" ]] || {
+        echo ">>> [PLUGIN][ERRORE] File di configurazione non trovato: $CONF"
+        return 1
+    }
 
     iniset "$CONF" DEFAULT debug True || return 1
-    iniset "$CONF" DEFAULT performance_collector_interval 30 || return 1
 
-    echo ">>> [PLUGIN] debug = True"
-    echo ">>> [PLUGIN] performance_collector_interval = 30"
+    CURRENT_INTERVAL=$(iniget "$CONF" DEFAULT performance_collector_interval)
+
+    if [[ -z "$CURRENT_INTERVAL" ]]; then
+        iniset "$CONF" DEFAULT performance_collector_interval 30 || return 1
+        echo ">>> [PLUGIN] performance_collector_interval non presente, imposto default = 30"
+    else
+        echo ">>> [PLUGIN] performance_collector_interval già configurato = $CURRENT_INTERVAL"
+    fi
 }
 
 
