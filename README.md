@@ -259,11 +259,8 @@ Esempio:
 ./simulate_io.sh vg-high
 ```
 
-N.B.: durante 
-
 ## Note finali
 
 - Il plugin è attualmente progettato principalmente per ambienti LVM-based.
-- I coefficienti di scoring sono empirici e configurabili.
 - Il sistema è facilmente estendibile verso altri driver di storage.
 - Il file JSON di bonus consente una gestione dinamica delle preferenze hardware.
