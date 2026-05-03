@@ -1,48 +1,25 @@
 # PerformanceWeightedScheduler
 
-PerformanceWeightedScheduler è un plugin sperimentale per OpenStack Cinder progettato per migliorare la selezione dei backend durante la creazione dei volumi.
+PerformanceWeightedScheduler è un plugin sperimentale per **OpenStack Cinder** progettato per migliorare la selezione dei backend durante la creazione dei volumi.
 
-Nel funzionamento standard di Cinder, lo scheduler seleziona principalmente un backend sulla base di parametri statici, come lo spazio disponibile e le capabilities esposte dai driver. Questo approccio può rappresentare un limite in ambienti con risorse di storage eterogenee, dove coesistono backend SSD e HDD.
+Nel funzionamento standard di Cinder, lo scheduler seleziona il backend principalmente sulla base di parametri statici, come lo spazio disponibile e le capabilities esposte dai driver. Questo approccio può rappresentare un limite in ambienti con risorse di storage eterogenee.
 
-Negli scenari basati su thick provisioning, una decisione errata dello scheduler può avere effetti persistenti, poiché il volume viene allocato immediatamente sul backend selezionato e rimane vincolato a quella scelta. Questo può causare:
+Negli scenari basati su **thick provisioning**, una decisione errata dello scheduler può avere effetti persistenti, poiché il volume viene allocato immediatamente sul backend selezionato e rimane vincolato a quella scelta. Questo può causare:
 
 - degrado delle prestazioni;
 - saturazione precoce dei backend più performanti;
 - scarso bilanciamento del carico;
-- utilizzo inefficiente dell’infrastruttura di storage disponibile.
+- utilizzo inefficiente dell’infrastruttura di storage.
 
-PerformanceWeightedScheduler introduce un meccanismo di pesatura più avanzato, basato non solo sulla capacità disponibile, ma anche su indicatori prestazionali dei backend, come:
+PerformanceWeightedScheduler introduce un meccanismo di pesatura avanzata, basato non solo sulla capacità disponibile, ma anche su indicatori prestazionali reali dei backend, tra cui:
 
-- IOPS
-- latenza
-- throughput
-- tipologia di storage
-- livello di saturazione
+- IOPS;
+- latenza;
+- throughput;
+- tipologia di storage;
+- livello di saturazione.
 
-## Architettura
-
-Il plugin è suddiviso in due componenti principali:
-
-### 1. Performance Collector
-
-Integrato in `cinder-volume`, questo modulo si occupa di:
-
-- raccogliere le metriche prestazionali dei backend;
-- acquisire informazioni sulla tipologia di storage;
-- pubblicare le metriche tramite RPC/AMQP;
-- supportare richieste di fallback provenienti dallo scheduler.
-
-### 2. Weigher Extension
-
-Integrato in `cinder-scheduler`, questo modulo si occupa di:
-
-- ricevere le metriche da `cinder-volume`;
-- memorizzarle in una cache interna;
-- estendere lo scheduler con un custom weigher;
-- calcolare un punteggio per ciascun backend;
-- selezionare il backend più adatto.
-
-Se le metriche richieste non sono presenti o risultano obsolete, lo scheduler può attivare una richiesta RPC on-demand verso `cinder-volume` per aggiornare i dati prima di eseguire la fase di weighing.
+---
 
 ## Obiettivi
 
@@ -54,13 +31,205 @@ Il plugin ha l’obiettivo di migliorare:
 - la capacità di evitare la saturazione precoce delle risorse più performanti;
 - l’efficienza del processo di selezione dei backend in scenari di thick provisioning.
 
+---
+
+## Architettura Plugin
+<img width="1003" height="595" alt="image" src="https://github.com/user-attachments/assets/c559e77a-86c9-428d-a018-f739fe1bd453" />
+
+Il plugin è suddiviso in due componenti principali.
+
+### 1. Performance Collector
+
+Integrato in `cinder-volume`, questo modulo si occupa di:
+
+- raccogliere le metriche prestazionali dei backend;
+- acquisire informazioni sulla tipologia di storage;
+- pubblicare le metriche verso `cinder-scheduler` tramite RPC/AMQP.
+
+#### Struttura del modulo
+
+- **collector_daemon.py**  
+  Processo periodico che avvia automaticamente la raccolta delle metriche.
+
+- **collector_service.py**  
+  Coordina la raccolta, identifica i backend configurati e associa i dispositivi fisici o virtuali da monitorare.
+
+- **performance_metrics.py**  
+  Utilizza `iostat` per raccogliere metriche quali:
+  - IOPS
+  - throughput
+  - latenza
+  - saturazione
+
+- **scheduler_rpc_api.py**  
+  Trasmette le metriche raccolte al modulo scheduler tramite RPC.
+
+---
+
+### 2. Weigher Extension
+
+Integrato in `cinder-scheduler`, questo modulo si occupa di:
+
+- ricevere le metriche da `cinder-volume`;
+- memorizzarle in una cache interna;
+- estendere lo scheduler con un custom weigher;
+- calcolare un punteggio per ciascun backend.
+
+Se le metriche richieste non sono presenti o risultano obsolete, lo scheduler può attivare una richiesta RPC on-demand verso `cinder-volume` per aggiornare i dati prima della fase di weighing.
+
+#### Struttura del modulo
+
+- **performance_weigher.py**  
+  Implementa il custom weigher e calcola lo score finale dei backend.
+
+- **scheduler_bootstrap.py**  
+  Inizializza il sistema RPC lato scheduler.
+
+- **scheduler_metrics_endpoint.py**  
+  Endpoint RPC che riceve e aggiorna le metriche.
+
+- **metrics_cache.py**  
+  Gestisce la cache locale delle metriche dei backend.
+
+- **performance_storage_bonus.json** (`/etc/cinder/`)  
+  File di configurazione che consente di associare bonus differenti a specifiche tecnologie di storage (SSD, HDD, NVMe).
+
+---
+
+
 ## Struttura del progetto
 
 ```text
-modulo_1_performance_collector/
-├── ....py
+PerformanceWeightedScheduler/
+│
+├── devstack/
+│   ├── plugin.sh
+│   ├── module1_collector.sh
+│   └── module2_weigher.sh
+│
+├── modulo_1_performance_collector/
+│   ├── collector_daemon.py
+│   ├── collector_service.py
+│   ├── performance_metrics.py
+│   └── scheduler_rpc_api.py
+│
+├── modulo_2_weigher_extension/
+│   ├── performance_weigher.py
+│   ├── scheduler_bootstrap.py
+│   ├── scheduler_metrics_endpoint.py
+│   └── metrics_cache.py
+│
+├── test_env/
+│   └── local.conf
+│
+├── test_script/
+    ├── setup_env.sh
+    └── simulate_io.sh
 
-modulo_2_weigher_extension/
-├── ....py
+
 ```
 
+
+
+## Ambiente di test
+
+### Cartella `test_env`
+
+Contiene il file di configurazione DevStack utilizzato per predisporre l’ambiente di test in modo da fornire una configurazione completa e facilmente replicabile dell’ambiente sperimentale.
+
+- **local.conf**
+  - credenziali DevStack;
+  - configurazione servizi OpenStack;
+  - attivazione del plugin;
+  - configurazione Cinder multi-backend;
+  - backend `low_cap`, `mid_cap`, `high_cap`;
+  - tipologia di storage e volume type;
+  - parametri di test.
+
+---
+
+### Cartella `test_script`
+
+Contiene gli script utilizzati per predisporre e validare l’ambiente di test in modo da simulare tre backend distinti con capacità differenti su una singola macchina.
+
+#### `setup_env.sh`
+
+- crea i Volume Group LVM:
+  - `vg-low`
+  - `vg-mid`
+  - `vg-high`
+- associa i file a loop device Linux;
+
+
+#### `simulate_io.sh`
+
+- genera operazioni di lettura e scrittura sul backend selezionato;
+- produce carico reale;
+- consente di verificare:
+  - raccolta metriche via `iostat`;
+  - aggiornamento dinamico delle metriche;
+  - comportamento dello scheduler sotto carico.
+
+---
+
+## Workflow di installazione e test
+
+### 1. Installazione DevStack
+
+```bash
+sudo apt update
+sudo apt install -y git
+git clone https://opendev.org/openstack/devstack
+cd devstack
+```
+
+Copiare il file:
+
+```text
+PerformanceWeightedScheduler/test_env/local.conf
+```
+
+Eseguire:
+
+```bash
+./stack.sh
+```
+
+---
+
+### 2. Setup ambiente di test
+
+```bash
+cd /opt/stack/performance-weighted-scheduler/test_script
+chmod +x setup_env.sh
+./setup_env.sh
+```
+
+Verifica disponibilità servizi:
+
+```bash
+openstack volume service list
+```
+---
+
+### 3. Simulazione I/O
+
+```bash
+chmod +x simulate_io.sh
+./simulate_io.sh <nome_VG>
+```
+
+Esempio:
+
+```bash
+./simulate_io.sh vg-high
+```
+
+
+
+## Note finali
+
+- Il plugin è attualmente progettato principalmente per ambienti LVM-based.
+- I coefficienti di scoring sono empirici e configurabili.
+- Il sistema è facilmente estendibile verso altri driver di storage.
+- Il file JSON di bonus consente una gestione dinamica delle preferenze hardware.
