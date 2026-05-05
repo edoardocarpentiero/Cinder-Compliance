@@ -30,9 +30,9 @@ create_vg() {
     echo "-----------------------------"
 }
 
-create_vg "5G" "vg-low-backing-file" "vg-low"
-create_vg "20G" "vg-mid-backing-file" "vg-mid"
-create_vg "100G" "vg-high-backing-file" "vg-high"
+create_vg "5G" "vg-low-backend-file" "vg-low"
+create_vg "20G" "vg-mid-backend-file" "vg-mid"
+create_vg "100G" "vg-high-backend-file" "vg-high"
 
 echo "Tutti i volume group sono stati creati con successo."
 
