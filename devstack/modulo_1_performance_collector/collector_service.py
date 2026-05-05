@@ -13,25 +13,24 @@ from cinder.volume.performance_weighted_scheduler_module1.scheduler_rpc_api impo
     SchedulerMetricsAPI,
 )
 
-CINDER_CONF_PATH = "/etc/cinder/cinder.conf"
-
 
 class PerformanceCollectorService:
-    def __init__(self, conf_path: str = CINDER_CONF_PATH) -> None:
+    def __init__(self, conf_path: str) -> None:
         print(
-            f"[DEBUG][collector_service] Inizializzazione di PerformanceCollectorService "
+            f"[PLUGIN - MD1][collector_service] Inizializzazione di PerformanceCollectorService "
             f"con conf_path='{conf_path}'",
             flush=True,
         )
         self.conf_path = conf_path
         self.collector = PerformanceMetricsCollector()
-        print("[DEBUG][collector_service] PerformanceMetricsCollector creato", flush=True)
+        print("[PLUGIN - MD1][collector_service] PerformanceMetricsCollector creato", flush=True)
         self.rpc_api = SchedulerMetricsAPI()
-        print("[DEBUG][collector_service] SchedulerMetricsAPI creato", flush=True)
+        print("[PLUGIN - MD1][collector_service] SchedulerMetricsAPI creato", flush=True)
 
-    def _load_parser(self) -> configparser.ConfigParser:
+
+    def letturaConfigurazioneCinderFile(self) -> configparser.ConfigParser:
         print(
-            f"[DEBUG][collector_service] Caricamento del parser per '{self.conf_path}'",
+            f"[PLUGIN - MD1][collector_service] Caricamento del parser per '{self.conf_path}'",
             flush=True,
         )
 
@@ -39,7 +38,7 @@ class PerformanceCollectorService:
         read_files = parser.read(self.conf_path)
 
         print(
-            f"[DEBUG][collector_service] parser.read ha restituito: {read_files}",
+            f"[PLUGIN - MD1][collector_service] parser.read ha restituito: {read_files}",
             flush=True,
         )
 
@@ -47,16 +46,16 @@ class PerformanceCollectorService:
             raise RuntimeError(f"Impossibile leggere il file di configurazione: {self.conf_path}")
 
         print(
-            f"[DEBUG][collector_service] Configurazione caricata correttamente da "
+            f"[PLUGIN - MD1][collector_service] Configurazione caricata correttamente da "
             f"'{self.conf_path}'",
             flush=True,
         )
         return parser
 
-    def _resolve_iostat_device_from_vg(self, volume_group: str) -> Optional[str]:
+    def risoluzioneLoopDevice(self, volume_group: str) -> Optional[str]:
         try:
             print(
-                f"[DEBUG][collector_service] Risoluzione del dispositivo iostat da "
+                f"[PLUGIN - MD1][collector_service] Risoluzione del dispositivo iostat da "
                 f"volume_group='{volume_group}'",
                 flush=True,
             )
@@ -71,7 +70,7 @@ class PerformanceCollectorService:
             ]
 
             print(
-                f"[DEBUG][collector_service] Esecuzione comando: {' '.join(cmd)}",
+                f"[PLUGIN - MD1][collector_service] Esecuzione comando: {' '.join(cmd)}",
                 flush=True,
             )
 
@@ -83,11 +82,11 @@ class PerformanceCollectorService:
             )
 
             print(
-                f"[DEBUG][collector_service] stdout di vgs: {result.stdout}",
+                f"[PLUGIN - MD1][collector_service] stdout di vgs: {result.stdout}",
                 flush=True,
             )
             print(
-                f"[DEBUG][collector_service] stderr di vgs: {result.stderr}",
+                f"[PLUGIN - MD1][collector_service] stderr di vgs: {result.stderr}",
                 flush=True,
             )
 
@@ -102,15 +101,15 @@ class PerformanceCollectorService:
                 return None
 
             pv_name = pv_name.splitlines()[0].strip()
-            device_name = pv_name.split("/")[-1]
+            loop_device = pv_name.split("/")[-1]
 
             print(
-                f"[DEBUG][collector_service] Risolto volume_group='{volume_group}' "
-                f"in device_name='{device_name}' usando pv_name='{pv_name}'",
+                f"[PLUGIN - MD1][collector_service] Risolto volume_group='{volume_group}' "
+                f"in loop_device='{loop_device}' usando pv_name='{pv_name}'",
                 flush=True,
             )
 
-            return device_name
+            return loop_device
 
         except Exception as exc:
             print(
@@ -120,19 +119,21 @@ class PerformanceCollectorService:
             )
             return None
 
-    def _load_backends_from_conf(self) -> List[Dict[str, Any]]:
+
+    def caricaInfoBackend(self) -> List[Dict[str, Any]]:
+        global loop_device_name
         print(
-            f"[DEBUG][collector_service] Caricamento della configurazione dei backend da "
+            f"[PLUGIN - MD1][collector_service] Caricamento della configurazione dei backend da "
             f"'{self.conf_path}'",
             flush=True,
         )
 
-        parser = self._load_parser()
+        parser = self.letturaConfigurazioneCinderFile()
         backends: List[Dict[str, Any]] = []
 
         enabled_backends_raw = parser.get("DEFAULT", "enabled_backends", fallback="")
         print(
-            f"[DEBUG][collector_service] enabled_backends grezzo='{enabled_backends_raw}'",
+            f"[PLUGIN - MD1][collector_service] enabled_backends grezzo='{enabled_backends_raw}'",
             flush=True,
         )
 
@@ -149,13 +150,13 @@ class PerformanceCollectorService:
         ]
 
         print(
-            f"[DEBUG][collector_service] enabled_backends interpretati={enabled_backends}",
+            f"[PLUGIN - MD1][collector_service] enabled_backends interpretati={enabled_backends}",
             flush=True,
         )
 
         for backend_section in enabled_backends:
             print(
-                f"[DEBUG][collector_service] Elaborazione backend_section="
+                f"[PLUGIN - MD1][collector_service] Elaborazione backend_section="
                 f"'{backend_section}'",
                 flush=True,
             )
@@ -170,77 +171,71 @@ class PerformanceCollectorService:
 
             backend_conf = dict(parser.items(backend_section))
             print(
-                f"[DEBUG][collector_service] backend_conf[{backend_section}]="
+                f"[PLUGIN - MD1][collector_service] backend_conf[{backend_section}]="
                 f"{backend_conf}",
                 flush=True,
             )
 
             backend_name = backend_conf.get("volume_backend_name", backend_section)
-            storage_type_plugin = backend_conf.get("storage_type_plugin", "LVM")
-            device_name = backend_conf.get("iostat_device")
+            storage_type_plugin = backend_conf.get("storage_type_plugin", "unknown")
             volume_group = backend_conf.get("volume_group")
 
             print(
-                f"[DEBUG][collector_service] backend_name='{backend_name}', "
-                f"storage_type_plugin='{storage_type_plugin}', device_name='{device_name}', "
+                f"[PLUGIN - MD1][collector_service] backend_name='{backend_name}', "
+                f"storage_type_plugin='{storage_type_plugin}',"
                 f"volume_group='{volume_group}'",
                 flush=True,
             )
 
-            if device_name:
-                print(
-                    f"[DEBUG][collector_service] Uso iostat_device configurato "
-                    f"'{device_name}' per il backend '{backend_name}'",
-                    flush=True,
-                )
-            else:
-                if volume_group:
-                    device_name = self._resolve_iostat_device_from_vg(volume_group)
 
-                if not device_name:
-                    print(
+            if volume_group:
+                loop_device_name = self.risoluzioneLoopDevice(volume_group)
+
+            if not loop_device_name:
+                print(
                         f"[WARN][collector_service] Backend '{backend_name}': "
                         f"impossibile determinare automaticamente il dispositivo iostat; backend saltato",
                         flush=True,
                     )
-                    continue
+                continue
 
             backend_info = {
                 "backend": backend_name,
                 "storage_type_plugin": storage_type_plugin,
-                "device_name": device_name,
+                "device_name": loop_device_name,
                 "backend_section": backend_section,
             }
 
             print(
-                f"[DEBUG][collector_service] backend_info={backend_info}",
+                f"[PLUGIN - MD1][collector_service] backend_info={backend_info}",
                 flush=True,
             )
             backends.append(backend_info)
 
         print(
-            f"[DEBUG][collector_service] Caricate {len(backends)} configurazioni backend",
+            f"[PLUGIN - MD1][collector_service] Caricate {len(backends)} configurazioni backend",
             flush=True,
         )
         return backends
 
-    def publish_all_backend_metrics(self, context: Any, backends: List[Dict[str, Any]]) -> None:
+
+    def pubblicaMetricheRaccolte(self, context: Any, backends: List[Dict[str, Any]]) -> None:
         print(
-            f"[DEBUG][collector_service] Pubblicazione metriche per {len(backends)} backend",
+            f"[PLUGIN - MD1][collector_service] Pubblicazione metriche per {len(backends)} backend",
             flush=True,
         )
 
         for backend in backends:
             backend_name = backend["backend"]
             print(
-                f"[DEBUG][collector_service] Raccolta metriche per il backend "
+                f"[PLUGIN - MD1][collector_service] Raccolta metriche per il backend "
                 f"'{backend_name}'",
                 flush=True,
             )
 
             try:
-                metrics = self.collector.collect_iostat_metrics(
-                    backend_name=backend["backend"],
+                metrics = self.collector.collezionaMetricheIOSTAT(
+                    backend_name=backend_name,
                     storage_type_plugin=backend["storage_type_plugin"],
                     device_name=backend["device_name"],
                 )
@@ -248,15 +243,15 @@ class PerformanceCollectorService:
                 metrics["backend_section"] = backend.get("backend_section")
 
                 print(
-                    f"[DEBUG][collector_service] metriche per il backend "
+                    f"[PLUGIN - MD1][collector_service] metriche per il backend "
                     f"'{backend_name}' = {metrics}",
                     flush=True,
                 )
 
-                self.rpc_api.push_backend_metrics(context, metrics)
+                self.rpc_api.inviaMetricheScheduler(context, metrics)
 
                 print(
-                    f"[DEBUG][collector_service] Metriche pubblicate correttamente per "
+                    f"[PLUGIN - MD1][collector_service] Metriche pubblicate correttamente per "
                     f"il backend '{backend_name}'",
                     flush=True,
                 )
@@ -268,43 +263,17 @@ class PerformanceCollectorService:
                     flush=True,
                 )
 
-    def update_all_backend_metrics(self, context: Any | None = None) -> None:
-        print("[DEBUG][collector_service] Avvio di update_all_backend_metrics", flush=True)
+    def caricaMetricheBackend(self, context: Any | None = None) -> None:
+        print("[PLUGIN - MD1][collector_service] Avvio di caricaMetricheBackend", flush=True)
 
         if context is None:
             print(
-                "[DEBUG][collector_service] Nessun context fornito, creazione di admin_context",
+                "[PLUGIN - MD1][collector_service] Nessun context fornito, creazione di admin_context",
                 flush=True,
             )
             context = cinder_context.get_admin_context()
 
-        backends = self._load_backends_from_conf()
-        self.publish_all_backend_metrics(context, backends)
+        backends = self.caricaInfoBackend()
+        self.pubblicaMetricheRaccolte(context, backends)
 
-        print("[DEBUG][collector_service] Completato update_all_backend_metrics", flush=True)
-
-    def get_backend_metrics(
-        self,
-        backend_name: str,
-        storage_type_plugin: str,
-        device_name: str,
-    ) -> Dict[str, Any]:
-        print(
-            f"[DEBUG][collector_service] Recupero metriche su richiesta per "
-            f"backend='{backend_name}', storage_type_plugin='{storage_type_plugin}', "
-            f"device_name='{device_name}'",
-            flush=True,
-        )
-
-        metrics = self.collector.collect_iostat_metrics(
-            backend_name=backend_name,
-            storage_type_plugin=storage_type_plugin,
-            device_name=device_name,
-        )
-
-        print(
-            f"[DEBUG][collector_service] Metriche su richiesta raccolte per il backend "
-            f"'{backend_name}': {metrics}",
-            flush=True,
-        )
-        return metrics
+        print("[PLUGIN - MD1][collector_service] Completato caricaMetricheBackend", flush=True)

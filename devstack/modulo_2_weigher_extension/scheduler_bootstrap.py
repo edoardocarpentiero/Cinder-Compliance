@@ -16,7 +16,7 @@ def _init_conf() -> None:
     global _CONF_INITIALIZED
 
     if _CONF_INITIALIZED:
-        print("[DEBUG][bootstrap] Configurazione già inizializzata", flush=True)
+        print("[PLUGIN - MD2][bootstrap] Configurazione già inizializzata", flush=True)
         return
 
     CONF(
@@ -28,19 +28,19 @@ def _init_conf() -> None:
     _CONF_INITIALIZED = True
 
     print(
-        "[DEBUG][bootstrap] Configurazione scheduler caricata da /etc/cinder/cinder.conf",
+        "[PLUGIN - MD2][bootstrap] Configurazione scheduler caricata da /etc/cinder/cinder.conf",
         flush=True,
     )
 
 
-def init_scheduler_plugin():
+def initSchedulerPlugin():
     global _PLUGIN_STARTED
 
     if _PLUGIN_STARTED:
-        print("[DEBUG][bootstrap] Plugin scheduler già inizializzato", flush=True)
+        print("[PLUGIN - MD2][bootstrap] Plugin scheduler già inizializzato", flush=True)
         return
 
-    print("[DEBUG][bootstrap] Avvio inizializzazione plugin scheduler", flush=True)
+    print("[PLUGIN - MD2][bootstrap] Avvio inizializzazione plugin scheduler", flush=True)
 
     _init_conf()
 
@@ -65,6 +65,6 @@ def init_scheduler_plugin():
     _PLUGIN_STARTED = True
 
     print(
-        "[DEBUG][bootstrap] Server RPC scheduler avviato su topic 'scheduler_metrics'",
+        "[PLUGIN - MD2][bootstrap] Server RPC scheduler avviato su topic 'scheduler_metrics'",
         flush=True,
     )

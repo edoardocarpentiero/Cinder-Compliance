@@ -14,7 +14,7 @@ from cinder.scheduler.performance_weighted_scheduler_module2.scheduler_bootstrap
 STORAGE_BONUS_CONFIG = "/etc/cinder/performance_storage_bonus.json"
 
 
-def load_storage_bonus_map() -> Dict[str, float]:
+def caricaJSONStorageBonus() -> Dict[str, float]:
     if not os.path.exists(STORAGE_BONUS_CONFIG):
         print(
             f"[WARN][weigher] File bonus storage non trovato: {STORAGE_BONUS_CONFIG}. "
@@ -36,7 +36,7 @@ def load_storage_bonus_map() -> Dict[str, float]:
             if storage_type:
                 bonus_map[storage_type] = storage_bonus
 
-        print(f"[DEBUG][weigher] Bonus storage caricati: {bonus_map}", flush=True)
+        print(f"[PLUGIN - MD2][weigher] Bonus storage caricati: {bonus_map}", flush=True)
         return bonus_map
 
     except Exception as exc:
@@ -54,9 +54,9 @@ class PerformanceWeigher(weights.BaseHostWeigher):
         init_scheduler_plugin()
 
         self.cache = get_metrics_cache()
-        self.storage_bonus_map = load_storage_bonus_map()
+        self.storage_bonus_map = caricaJSONStorageBonus()
 
-        print("[DEBUG][weigher] PerformanceWeigher inizializzato", flush=True)
+        print("[PLUGIN - MD2][weigher] PerformanceWeigher inizializzato", flush=True)
 
     def weight_multiplier(self) -> float:
         return 2
@@ -65,11 +65,11 @@ class PerformanceWeigher(weights.BaseHostWeigher):
         host_state_name = getattr(host_state, "host", "")
 
         print(
-            f"[DEBUG][weigher] Calcolo peso per host_state '{host_state_name}'",
+            f"[PLUGIN - MD2][weigher] Calcolo peso per host '{host_state_name}'",
             flush=True,
         )
 
-        metrics = self.cache.find_by_host_state(host_state_name)
+        metrics = self.cache.cercaBackendConMetriche(host_state_name)
 
         if metrics is None:
             print(
@@ -106,7 +106,7 @@ class PerformanceWeigher(weights.BaseHostWeigher):
         )
 
         print(
-            f"[DEBUG][weigher] HostState '{host_state_name}' -> "
+            f"[PLUGIN - MD2][weigher] HostState '{host_state_name}' -> "
             f"iops={iops}, latency={latency_ms}, throughput={throughput_kb_s}, "
             f"saturation={saturation_pct}, storage={storage_type_plugin}, "
             f"bonus={storage_bonus}, score={score}",

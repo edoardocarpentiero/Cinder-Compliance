@@ -6,7 +6,7 @@ import signal
 import sys
 import time
 
-print("[DEBUG] modulo collector_daemon importato", flush=True)
+print("[PLUGIN - MD1] modulo collector_daemon importato", flush=True)
 
 from cinder import context as cinder_context
 from cinder.volume.performance_weighted_scheduler_module1.collector_service import (
@@ -26,22 +26,21 @@ _SHOULD_STOP = False
 
 def _handle_signal(signum, frame) -> None:
     global _SHOULD_STOP
-    print(f"[DEBUG] ricevuto segnale {signum}", flush=True)
-    LOG.info("Ricevuto segnale %s, arresto del daemon collector in corso", signum)
+    print(f"[PLUGIN - MD1] ricevuto segnale {signum}", flush=True)
     _SHOULD_STOP = True
 
 
-def _load_interval_from_conf(conf_path: str) -> int:
-    print(f"[DEBUG] caricamento intervallo da conf_path='{conf_path}'", flush=True)
+def caricaIntervalloDaemon(conf_path: str) -> int:
+    print(f"[PLUGIN - MD1] caricamento intervallo da conf_path='{conf_path}'", flush=True)
 
     parser = configparser.ConfigParser(interpolation=None)
     read_files = parser.read(conf_path)
 
-    print(f"[DEBUG] parser.read ha restituito: {read_files}", flush=True)
+    print(f"[PLUGIN - MD1] parser.read ha restituito: {read_files}", flush=True)
 
     if not read_files:
         print(
-            f"[DEBUG] Impossibile leggere '{conf_path}', "
+            f"[PLUGIN - MD1] Impossibile leggere '{conf_path}', "
             f"uso il valore predefinito performance_collector_interval=30: {read_files}",
             flush=True,
         )
@@ -49,7 +48,7 @@ def _load_interval_from_conf(conf_path: str) -> int:
 
     value = parser.get("DEFAULT", "performance_collector_interval", fallback="30")
 
-    print(f"[DEBUG] valore grezzo di performance_collector_interval='{value}'", flush=True)
+    print(f"[PLUGIN - MD1] valore grezzo di performance_collector_interval='{value}'", flush=True)
 
     try:
         interval = int(value)
@@ -57,11 +56,11 @@ def _load_interval_from_conf(conf_path: str) -> int:
         if interval <= 0:
             raise ValueError("L'intervallo deve essere positivo")
 
-        print(f"[DEBUG] intervallo interpretato={interval}", flush=True)
+        print(f"[PLUGIN - MD1] intervallo interpretato={interval}", flush=True)
         return interval
 
     except Exception as exc:
-        print(f"[DEBUG] errore durante l'interpretazione dell'intervallo: {exc}", flush=True)
+        print(f"[PLUGIN - MD1] errore durante l'interpretazione dell'intervallo: {exc}", flush=True)
 
         return 30
 
@@ -69,58 +68,57 @@ def _load_interval_from_conf(conf_path: str) -> int:
 def main() -> int:
     global _SHOULD_STOP
 
-    print("[DEBUG] ingresso in main()", flush=True)
+    print("[PLUGIN - MD1] ingresso in main()", flush=True)
 
     signal.signal(signal.SIGINT, _handle_signal)
     signal.signal(signal.SIGTERM, _handle_signal)
 
-    print("[DEBUG] gestori dei segnali registrati", flush=True)
+    print("[PLUGIN - MD1] gestori dei segnali registrati", flush=True)
 
-    interval = _load_interval_from_conf(CINDER_CONF_PATH)
+    interval = caricaIntervalloDaemon(CINDER_CONF_PATH)
 
-    print(f"[DEBUG] intervallo caricato: {interval}", flush=True)
+    print(f"[PLUGIN - MD1] intervallo caricato: {interval}", flush=True)
 
     print(
-        f"[DEBUG] Avvio del daemon Performance Collector con intervallo={interval} secondi, "
+        f"[PLUGIN - MD1] Avvio del daemon Performance Collector con intervallo={interval} secondi, "
         f"conf_path='{CINDER_CONF_PATH}'",
         flush=True,
     )
 
     collector = PerformanceCollectorService(conf_path=CINDER_CONF_PATH)
 
-    print("[DEBUG] PerformanceCollectorService creato", flush=True)
+    print("[PLUGIN - MD1] PerformanceCollectorService creato", flush=True)
 
     admin_context = cinder_context.get_admin_context()
 
-    print("[DEBUG] admin_context creato", flush=True)
+    print("[PLUGIN - MD1] admin_context creato", flush=True)
 
     while not _SHOULD_STOP:
         try:
-            print("[DEBUG] avvio ciclo periodico di raccolta", flush=True)
+            print("[PLUGIN - MD1] avvio ciclo periodico di raccolta", flush=True)
 
-            collector.update_all_backend_metrics(admin_context)
+            collector.caricaMetricheBackend(admin_context)
 
-            print("[DEBUG] ciclo periodico di raccolta completato", flush=True)
+            print("[PLUGIN - MD1] ciclo periodico di raccolta completato", flush=True)
 
         except Exception as exc:
-            print(f"[DEBUG] raccolta periodica non riuscita: {exc}", flush=True)
-            LOG.exception("Raccolta periodica delle metriche non riuscita")
+            print(f"[PLUGIN - MD1] raccolta periodica non riuscita: {exc}", flush=True)
 
         if _SHOULD_STOP:
-            print("[DEBUG] flag di arresto rilevato, uscita dal ciclo", flush=True)
+            print("[PLUGIN - MD1] flag di arresto rilevato, uscita dal ciclo", flush=True)
             break
 
-        print(f"[DEBUG] sospensione per {interval} secondi", flush=True)
+        print(f"[PLUGIN - MD1] sospensione per {interval} secondi", flush=True)
         time.sleep(interval)
 
-    print("[DEBUG] daemon collector arrestato", flush=True)
+    print("[PLUGIN - MD1] daemon collector arrestato", flush=True)
 
     return 0
 
 
 if __name__ == "__main__":
     try:
-        print("[DEBUG] entrypoint __main__ raggiunto", flush=True)
+        print("[PLUGIN - MD1] entrypoint __main__ raggiunto", flush=True)
         sys.exit(main())
     except Exception as exc:
         import traceback
